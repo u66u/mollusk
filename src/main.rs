@@ -94,7 +94,6 @@ impl VM {
         None
     }
 
-
     fn execute(&mut self, instructions: &[Instruction]) {
         while self.ip < instructions.len() {
             match &instructions[self.ip] {
@@ -158,7 +157,7 @@ impl VM {
                     let value = self.stack.pop().expect("Stack underflow");
                     self.current_env().insert(name.clone(), value);
                 }
-                
+
                 Instruction::Load(name) => {
                     if let Some(value) = self.get_var(name) {
                         self.stack.push(value);
@@ -166,22 +165,14 @@ impl VM {
                         panic!("Undefined variable: {}", name);
                     }
                 }
-                
+
                 Instruction::BeginScope => {
-                    let current_env = self.env_stack.last().unwrap().clone();
-                    self.env_stack.push(current_env);
-                }
-                
-                Instruction::EndScope => {
-                    if let Some(current_scope) = self.env_stack.pop() {
-                        if let Some(parent_scope) = self.env_stack.last_mut() {
-                            for (key, value) in current_scope {
-                                parent_scope.insert(key, value);
-                            }
-                        }
-                    }
+                    self.env_stack.push(HashMap::new());
                 }
 
+                Instruction::EndScope => {
+                    self.env_stack.pop().expect("No scope to pop");
+                }
             }
             self.ip += 1;
         }
@@ -546,7 +537,7 @@ fn compile(node: ASTNode) -> Vec<Instruction> {
             let body_instructions: Vec<Instruction> = body.into_iter().flat_map(compile).collect();
 
             // Jz target: Jump to the end of the loop if the condition is false
-            let jz_target = instructions.len() + body_instructions.len() + 2; // +2 for Jz and Jmp instructions
+            let jz_target = instructions.len() + body_instructions.len() + 2;
             instructions.push(Instruction::Jz(jz_target));
 
             instructions.extend(body_instructions.clone());
@@ -581,18 +572,14 @@ fn compile(node: ASTNode) -> Vec<Instruction> {
 
 fn main() {
     let program = r#"
-        {
-            x = 20;
-            y = 30;
-            z = x + y;
-        }
-        {
-            x = x + 10;
-            y = y + 5;
-        }
-        z;
-    "#.to_string();
-    
+        x = 5
+        { y = 5}
+        y = 6 
+        z = (y + 6)
+        (z / y)
+    "#
+    .to_string();
+
     let tokenizer = Tokenizer::new(program);
     let mut parser = Parser::new(tokenizer);
     let ast_nodes = parser.parse_program();
@@ -603,7 +590,7 @@ fn main() {
 
     let mut vm = VM::new();
     vm.execute(&instructions);
-    
+
     println!("Stack: {:?}", vm.stack);
     println!("Variables: {:?}", vm.env_stack);
 }
