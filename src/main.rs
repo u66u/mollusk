@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 #[derive(Debug, PartialEq, Clone)]
 enum Token {
     Number(i32),
@@ -17,6 +19,7 @@ enum Token {
     Less,
     Equal,
     NotEqual,
+    Ident(String),
 }
 
 #[derive(Debug, Clone)]
@@ -34,6 +37,10 @@ enum Instruction {
     Jmp(usize),
     Jz(usize),
     Label(String),
+    Store(String),
+    Load(String),
+    BeginScope,
+    EndScope,
 }
 
 #[derive(Debug, Clone)]
@@ -53,11 +60,16 @@ enum ASTNode {
         condition: Box<ASTNode>,
         body: Vec<ASTNode>,
     },
+    VarDecl(String, Box<ASTNode>),
+    VarAssign(String, Box<ASTNode>),
+    VarRef(String),
+    Block(Vec<ASTNode>),
 }
 
 struct VM {
     stack: Vec<i32>,
     ip: usize,
+    env_stack: Vec<HashMap<String, i32>>,
 }
 
 impl VM {
@@ -65,8 +77,23 @@ impl VM {
         VM {
             stack: Vec::new(),
             ip: 0,
+            env_stack: vec![HashMap::new()], // Start with global scope
         }
     }
+
+    fn current_env(&mut self) -> &mut HashMap<String, i32> {
+        self.env_stack.last_mut().expect("No environment on stack")
+    }
+
+    fn get_var(&self, name: &str) -> Option<i32> {
+        for env in self.env_stack.iter().rev() {
+            if let Some(value) = env.get(name) {
+                return Some(*value);
+            }
+        }
+        None
+    }
+
 
     fn execute(&mut self, instructions: &[Instruction]) {
         while self.ip < instructions.len() {
@@ -127,6 +154,34 @@ impl VM {
                     }
                 }
                 Instruction::Label(_) => {}
+                Instruction::Store(name) => {
+                    let value = self.stack.pop().expect("Stack underflow");
+                    self.current_env().insert(name.clone(), value);
+                }
+                
+                Instruction::Load(name) => {
+                    if let Some(value) = self.get_var(name) {
+                        self.stack.push(value);
+                    } else {
+                        panic!("Undefined variable: {}", name);
+                    }
+                }
+                
+                Instruction::BeginScope => {
+                    let current_env = self.env_stack.last().unwrap().clone();
+                    self.env_stack.push(current_env);
+                }
+                
+                Instruction::EndScope => {
+                    if let Some(current_scope) = self.env_stack.pop() {
+                        if let Some(parent_scope) = self.env_stack.last_mut() {
+                            for (key, value) in current_scope {
+                                parent_scope.insert(key, value);
+                            }
+                        }
+                    }
+                }
+
             }
             self.ip += 1;
         }
@@ -205,7 +260,8 @@ impl Tokenizer {
                         self.position += 2;
                         return Token::Equal;
                     } else {
-                        panic!("Unexpected token: =");
+                        self.position += 1;
+                        return Token::Ident("=".to_string());
                     }
                 }
                 '!' => {
@@ -216,22 +272,21 @@ impl Tokenizer {
                         panic!("Unexpected token: !");
                     }
                 }
-                'i' => {
-                    if self.input[self.position..].starts_with("if") {
-                        self.position += 2;
-                        return Token::If;
+                'a'..='z' | 'A'..='Z' => {
+                    let mut ident = String::new();
+                    while self.position < self.input.len() {
+                        let c = self.input.chars().nth(self.position).unwrap();
+                        if !c.is_ascii_alphanumeric() && c != '_' {
+                            break;
+                        }
+                        ident.push(c);
+                        self.position += 1;
                     }
-                }
-                'w' => {
-                    if self.input[self.position..].starts_with("while") {
-                        self.position += 5;
-                        return Token::While;
-                    }
-                }
-                'e' => {
-                    if self.input[self.position..].starts_with("else") {
-                        self.position += 4;
-                        return Token::Else;
+                    match ident.as_str() {
+                        "if" => return Token::If,
+                        "else" => return Token::Else,
+                        "while" => return Token::While,
+                        _ => return Token::Ident(ident),
                     }
                 }
                 _ => {
@@ -241,6 +296,7 @@ impl Tokenizer {
         }
         Token::EOF
     }
+
     fn tokenize(&mut self) -> Vec<Token> {
         let mut tokens = Vec::new();
         loop {
@@ -272,11 +328,7 @@ impl Parser {
     fn parse_program(&mut self) -> Vec<ASTNode> {
         let mut statements = Vec::new();
         while self.current_token != Token::EOF {
-            match self.current_token {
-                Token::If => statements.push(self.if_statement()),
-                Token::While => statements.push(self.while_loop()),
-                _ => statements.push(self.expr()),
-            }
+            statements.push(self.statement());
         }
         statements
     }
@@ -302,8 +354,17 @@ impl Parser {
                 self.eat(Token::RParen);
                 node
             }
+            Token::Ident(_) => {
+                let var_name = if let Token::Ident(name) = &self.current_token {
+                    name.clone()
+                } else {
+                    panic!("Expected identifier");
+                };
+                self.eat(Token::Ident(var_name.clone()));
+                ASTNode::VarRef(var_name)
+            }
             _ => panic!(
-                "Unexpected token in factor: expected Number or LParen, found {:?}",
+                "Unexpected token in factor: expected Number, LParen, or Ident, found {:?}",
                 self.current_token
             ),
         }
@@ -403,10 +464,36 @@ impl Parser {
         self.eat(Token::LBrace);
         let mut nodes = Vec::new();
         while self.current_token != Token::RBrace {
-            nodes.push(self.expr());
+            nodes.push(self.statement());
         }
         self.eat(Token::RBrace);
         nodes
+    }
+
+    fn statement(&mut self) -> ASTNode {
+        match self.current_token {
+            Token::If => self.if_statement(),
+            Token::While => self.while_loop(),
+            Token::LBrace => ASTNode::Block(self.block()),
+            Token::Ident(_) => self.var_statement(),
+            _ => self.expr(),
+        }
+    }
+
+    fn var_statement(&mut self) -> ASTNode {
+        let var_name = if let Token::Ident(name) = &self.current_token {
+            name.clone()
+        } else {
+            panic!("Expected identifier");
+        };
+        self.eat(Token::Ident(var_name.clone()));
+        if self.current_token == Token::Ident("=".to_string()) {
+            self.eat(Token::Ident("=".to_string()));
+            let value = self.expr();
+            ASTNode::VarAssign(var_name, Box::new(value))
+        } else {
+            ASTNode::VarRef(var_name)
+        }
     }
 }
 
@@ -470,21 +557,53 @@ fn compile(node: ASTNode) -> Vec<Instruction> {
 
             instructions
         }
+        ASTNode::VarDecl(name, value) => {
+            let mut instructions = compile(*value);
+            instructions.push(Instruction::Store(name));
+            instructions
+        }
+        ASTNode::VarAssign(name, value) => {
+            let mut instructions = compile(*value);
+            instructions.push(Instruction::Store(name));
+            instructions
+        }
+        ASTNode::VarRef(name) => {
+            vec![Instruction::Load(name)]
+        }
+        ASTNode::Block(nodes) => {
+            let mut instructions = vec![Instruction::BeginScope];
+            instructions.extend(nodes.into_iter().flat_map(compile));
+            instructions.push(Instruction::EndScope);
+            instructions
+        }
     }
 }
 
 fn main() {
-    let if_else = "while (3 > 2) { 1 }".to_string();
-    let tokenizer = Tokenizer::new(if_else);
+    let program = r#"
+        {
+            x = 20;
+            y = 30;
+            z = x + y;
+        }
+        {
+            x = x + 10;
+            y = y + 5;
+        }
+        z;
+    "#.to_string();
+    
+    let tokenizer = Tokenizer::new(program);
     let mut parser = Parser::new(tokenizer);
     let ast_nodes = parser.parse_program();
     println!("AST: {:?}", ast_nodes);
 
+    let instructions: Vec<Instruction> = ast_nodes.into_iter().flat_map(compile).collect();
+    println!("Instructions: {:?}", instructions);
+
     let mut vm = VM::new();
-    for ast in ast_nodes {
-        let instructions = compile(ast);
-        println!("Instructions: {:?}", instructions);
-        vm.execute(&instructions);
-    }
+    vm.execute(&instructions);
+    
     println!("Stack: {:?}", vm.stack);
+    println!("Variables: {:?}", vm.env_stack);
 }
