@@ -19,7 +19,7 @@ enum Token {
     NotEqual,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Instruction {
     Push(i32),
     Pop,
@@ -254,6 +254,7 @@ impl Tokenizer {
     }
 }
 
+#[derive(Debug)]
 struct Parser {
     tokenizer: Tokenizer,
     current_token: Token,
@@ -434,30 +435,47 @@ fn compile(node: ASTNode) -> Vec<Instruction> {
             else_block,
         } => {
             let mut instructions = compile(*condition);
-            let jz_target = instructions.len() + if_block.len() + 1;
-            instructions.push(Instruction::Jz(jz_target));
-            instructions.extend(if_block.into_iter().flat_map(compile));
-            let jmp_target = instructions.len() + else_block.len() + 1;
-            instructions.push(Instruction::Jmp(jmp_target));
-            instructions.extend(else_block.into_iter().flat_map(compile));
+            let if_instructions: Vec<Instruction> =
+                if_block.into_iter().flat_map(compile).collect();
+            let else_instructions: Vec<Instruction> =
+                else_block.into_iter().flat_map(compile).collect();
+
+            // Calculate the position where else block starts:
+            let else_start = instructions.len() + 1 + if_instructions.len() + 1;
+            instructions.push(Instruction::Jz(else_start));
+
+            instructions.extend(if_instructions);
+
+            // Calculate the position after the entire if-else block:
+            let after_else = instructions.len() + 1 + else_instructions.len();
+            instructions.push(Instruction::Jmp(after_else));
+
+            instructions.extend(else_instructions);
+
             instructions
         }
         ASTNode::While { condition, body } => {
             let mut instructions = compile(*condition);
-            let jz_target = instructions.len() + &body.len() + 2;
+            let body_instructions: Vec<Instruction> = body.into_iter().flat_map(compile).collect();
+
+            // Jz target: Jump to the end of the loop if the condition is false
+            let jz_target = instructions.len() + body_instructions.len() + 2; // +2 for Jz and Jmp instructions
             instructions.push(Instruction::Jz(jz_target));
-            instructions.extend(body.clone().into_iter().flat_map(compile));
-            let jmp_target = instructions.len() - (&body.len() + 1);
+
+            instructions.extend(body_instructions.clone());
+
+            // Jmp target: Jump back to the start of the loop
+            let jmp_target = 0;
             instructions.push(Instruction::Jmp(jmp_target));
+
             instructions
         }
     }
 }
 
 fn main() {
-    let input = "if (3 > 2) { 1 } else { 0 }".to_string();
-
-    let tokenizer = Tokenizer::new(input);
+    let if_else = "while (3 > 2) { 1 }".to_string();
+    let tokenizer = Tokenizer::new(if_else);
     let mut parser = Parser::new(tokenizer);
     let ast_nodes = parser.parse_program();
     println!("AST: {:?}", ast_nodes);
@@ -465,8 +483,8 @@ fn main() {
     let mut vm = VM::new();
     for ast in ast_nodes {
         let instructions = compile(ast);
+        println!("Instructions: {:?}", instructions);
         vm.execute(&instructions);
     }
-
-    println!("Result: {:?}", vm.stack);
+    println!("Stack: {:?}", vm.stack);
 }
