@@ -1,6 +1,6 @@
-use crate::tokenizer::{Token, Tokenizer};
-use crate::error::VMError;
 use crate::ast::ASTNode;
+use crate::error::VMError;
+use crate::tokenizer::{Token, Tokenizer};
 
 #[derive(Debug)]
 pub struct Parser {

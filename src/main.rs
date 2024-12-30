@@ -1,14 +1,13 @@
 use std::collections::HashMap;
-mod types;
-mod error;
-mod tokenizer;
-mod parser;
 mod ast;
+mod error;
+mod parser;
+mod tokenizer;
+mod types;
 
-use crate::tokenizer::{Token, Tokenizer};
-use crate::parser::Parser;
 use crate::ast::ASTNode;
-
+use crate::parser::Parser;
+use crate::tokenizer::{Token, Tokenizer};
 
 // #[derive(Debug, Clone)]
 // enum Instruction {
@@ -35,8 +34,6 @@ use crate::ast::ASTNode;
 //     ArrayGet,
 //     ArraySet,
 // }
-
-
 
 // struct VM {
 //     stack: Vec<i32>,
@@ -144,7 +141,6 @@ use crate::ast::ASTNode;
 //         }
 //     }
 // }
-
 
 // fn compile(node: ASTNode) -> Vec<Instruction> {
 //     match node {
@@ -259,6 +255,7 @@ let x = 5
 while (x > 0) {
     x = x - 1
 }
+   y + 5
     "#
     .to_string();
 
