@@ -1,35 +1,24 @@
+use crate::error::VMError;
+
 #[derive(Debug, Clone, PartialEq)]
-enum Value {
+pub enum Value {
     Number(i32),
     Boolean(bool),
     Array(Vec<Value>),
     Null,
 }
 
-#[derive(Debug)]
-enum TypeError {
-    InvalidOperation {
-        op: String,
-        left: &'static str,
-        right: &'static str,
-    },
-    InvalidIndex,
-    InvalidType {
-        expected: &'static str,
-        got: &'static str,
-    },
-}
 trait VMAdd {
-    fn vm_add(&self, other: &Value) -> Result<Value, TypeError>;
+    fn vm_add(&self, other: &Value) -> Result<Value, VMError>;
 }
 
 trait VMCompare {
     fn vm_eq(&self, other: &Value) -> bool;
-    fn vm_lt(&self, other: &Value) -> Result<bool, TypeError>;
+    fn vm_lt(&self, other: &Value) -> Result<bool, VMError>;
 }
 
 impl VMAdd for Value {
-    fn vm_add(&self, other: &Value) -> Result<Value, TypeError> {
+    fn vm_add(&self, other: &Value) -> Result<Value, VMError> {
         match (self, other) {
             (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a + b)),
             (Value::Array(a), Value::Array(b)) => {
@@ -37,11 +26,7 @@ impl VMAdd for Value {
                 result.extend(b.iter().cloned());
                 Ok(Value::Array(result))
             }
-            _ => Err(TypeError::InvalidOperation {
-                op: "add".to_string(),
-                left: self.type_name(),
-                right: other.type_name(),
-            }),
+            _ => Err(VMError::TypeError { message: ("Invalid addition".to_string()) }),
         }
     }
 }
@@ -57,14 +42,10 @@ impl VMCompare for Value {
         }
     }
 
-    fn vm_lt(&self, other: &Value) -> Result<bool, TypeError> {
+    fn vm_lt(&self, other: &Value) -> Result<bool, VMError> {
         match (self, other) {
             (Value::Number(a), Value::Number(b)) => Ok(a < b),
-            _ => Err(TypeError::InvalidOperation {
-                op: "less than".to_string(),
-                left: self.type_name(),
-                right: other.type_name(),
-            }),
+            _ => Err(VMError::TypeError { message: ("Invalid lt".to_string()) }),
         }
     }
 }

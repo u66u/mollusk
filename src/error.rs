@@ -23,7 +23,6 @@ pub enum VMError {
     },
     StackUnderflow,
     DivisionByZero,
-    // Add more error types as needed
 }
 
 impl std::fmt::Display for VMError {

@@ -4,6 +4,7 @@ mod error;
 mod parser;
 mod tokenizer;
 mod types;
+mod vm;
 
 use crate::ast::ASTNode;
 use crate::parser::Parser;
@@ -251,13 +252,14 @@ use crate::tokenizer::{Token, Tokenizer};
 
 fn main() {
     let program = r#"
-let x = 5
-while (x > 0) {
-    x = x - 1
-}
-   y + 5
+    if (x > 10) {
+        y = x + 5
+    } else {
+        y = x - 5
+    }
     "#
     .to_string();
+
 
     let tokenizer = Tokenizer::new(program);
     let mut parser = Parser::new(tokenizer);
