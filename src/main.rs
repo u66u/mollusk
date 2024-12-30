@@ -66,6 +66,17 @@ enum ASTNode {
     Block(Vec<ASTNode>),
 }
 
+#[derive(Debug, Clone, PartialEq)]
+struct Tokenizer {
+    input: String,
+    position: usize,
+}
+
+#[derive(Debug)]
+struct Parser {
+    tokenizer: Tokenizer,
+    current_token: Token,
+}
 struct VM {
     stack: Vec<i32>,
     ip: usize,
@@ -173,12 +184,6 @@ impl VM {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-struct Tokenizer {
-    input: String,
-    position: usize,
-}
-
 impl Tokenizer {
     fn new(input: String) -> Self {
         Tokenizer { input, position: 0 }
@@ -281,12 +286,6 @@ impl Tokenizer {
         }
         Token::EOF
     }
-}
-
-#[derive(Debug)]
-struct Parser {
-    tokenizer: Tokenizer,
-    current_token: Token,
 }
 
 impl Parser {
@@ -516,24 +515,22 @@ fn compile(node: ASTNode) -> Vec<Instruction> {
         }
         ASTNode::While { condition, body } => {
             let mut instructions = Vec::new();
-            
             // Record where condition check starts
             let condition_start = instructions.len();
             instructions.extend(compile(*condition));
-            
+
             // Record where we'll put the Jz instruction
             let jz_placeholder_index = instructions.len();
             instructions.push(Instruction::Jz(0)); // Temporary placeholder
-            
+
             let body_instructions: Vec<Instruction> = body.into_iter().flat_map(compile).collect();
             let body_len = body_instructions.len();
             instructions.extend(body_instructions);
-            
             instructions.push(Instruction::Jmp(condition_start));
-            
+
             let after_loop = jz_placeholder_index + 1 + body_len + 1;
             instructions[jz_placeholder_index] = Instruction::Jz(after_loop);
-            
+
             instructions
         }
         ASTNode::VarDecl(name, value) => {
@@ -561,10 +558,10 @@ fn compile(node: ASTNode) -> Vec<Instruction> {
 fn run_instructions(nodes: Vec<ASTNode>) -> Vec<Instruction> {
     let mut instr = Vec::new();
     let mut offset = 0;
-    
+
     for node in nodes {
         let mut node_instructions = compile(node);
-        
+
         for instruction in &mut node_instructions {
             match instruction {
                 Instruction::Jmp(target) => *target += offset,
@@ -572,30 +569,33 @@ fn run_instructions(nodes: Vec<ASTNode>) -> Vec<Instruction> {
                 _ => {}
             }
         }
-        
+
         offset += node_instructions.len();
         instr.extend(node_instructions);
     }
     instr
 }
 
-
 fn main() {
     let program = r#"
-    i = 0;
-    while (i < 5) {
-    i = i + 1
-    } 
-    (i+5)
+    for (i = 0; i < 5; i = i + 1) {
+    x = 5
+}
+
     "#
     .to_string();
 
     let tokenizer = Tokenizer::new(program);
     let mut parser = Parser::new(tokenizer);
     let ast_nodes = parser.parse_program();
+    println!("AST: {:?}\n", ast_nodes);
     let instructions = run_instructions(ast_nodes);
 
-    println!("Instructions: {:?}", instructions);
+    println!(
+        "Instructions: {:?}, len: {:?})",
+        instructions,
+        instructions.len()
+    );
 
     let mut vm = VM::new();
     vm.execute(&instructions);
