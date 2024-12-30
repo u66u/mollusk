@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+mod types;
 
 #[derive(Debug, PartialEq, Clone)]
 enum Token {
@@ -41,6 +42,11 @@ enum Instruction {
     Load(String),
     BeginScope,
     EndScope,
+    CreateArray(usize),
+    ArrayPush,
+    ArrayPop,
+    ArrayGet,
+    ArraySet,
 }
 
 #[derive(Debug, Clone)]
