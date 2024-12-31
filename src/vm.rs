@@ -139,10 +139,13 @@ impl VM {
                     self.current_env().insert(name.clone(), value);
                 }
                 Instruction::Load(name) => {
-                    let value = self.get_var(name).ok_or(VMError::UndefinedVariable {
-                        name: name.clone(),
-                    })?;
-                    self.stack.push(value);
+                    if let Some(value) = self.get_var(name) {
+                        self.stack.push(value);
+                    } else {
+                        return Err(VMError::UndefinedVariable {
+                            name: name.clone()
+                        });
+                    }
                 }
                 Instruction::BeginScope => {
                     self.env_stack.push(HashMap::new());

@@ -12,20 +12,19 @@ use crate::vm::{VM, run_instructions};
 
 fn main() {
     let program = r#"
-    x = 0
-    if (x > 10) {
-        y = x + 5
-    } else {
-        y = x - 5
-    }
-    while (x < 10) {
-        x = x + 1
-    }
-    i = 10
-    y = 5
+x = 5
+if (x == 10) {
+    y = x + 5  
+} else {
+    y = x - 5
+}
+while (x < 10) {
+    x = x + 1  
+}
+i = 10  
+i
     "#
     .to_string();
-
 
     let tokenizer = Tokenizer::new(program);
     let mut parser = Parser::new(tokenizer);
@@ -35,9 +34,12 @@ fn main() {
         let instructions = run_instructions(nodes);
         println!("Instructions: {:?}\n", instructions);
         let mut vm = VM::new();
-        let _ = vm.execute(&instructions);
-        println!("VM stack: {:?}", vm.stack);
-        println!("VM env: {:?}", vm.env_stack);
+        match vm.execute(&instructions) {
+            Ok(_) => {
+                println!("VM stack: {:?}", vm.stack);
+                println!("VM env: {:?}", vm.env_stack);
+            }
+            Err(e) => println!("Runtime error: {}", e)
+        }
     }
-
 }

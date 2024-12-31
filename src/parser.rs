@@ -31,10 +31,11 @@ impl Parser {
     }
 
     fn factor(&mut self) -> Result<ASTNode, VMError> {
-        match self.current_token {
+        match &self.current_token {
             Token::Number(n) => {
-                self.eat(Token::Number(n))?;
-                Ok(ASTNode::Number(n))
+                let num = *n;
+                self.eat(Token::Number(num))?;
+                Ok(ASTNode::Number(num))
             }
             Token::LParen => {
                 self.eat(Token::LParen)?;
@@ -42,16 +43,8 @@ impl Parser {
                 self.eat(Token::RParen)?;
                 Ok(node)
             }
-            Token::Ident(_) => {
-                let var_name = if let Token::Ident(name) = &self.current_token {
-                    name.clone()
-                } else {
-                    return Err(VMError::ParseError {
-                        message: "Expected identifier".to_string(),
-                        line: self.tokenizer.line,
-                        position: self.tokenizer.line_position,
-                    });
-                };
+            Token::Ident(name) => {
+                let var_name = name.clone();
                 self.eat(Token::Ident(var_name.clone()))?;
                 Ok(ASTNode::VarRef(var_name))
             }
@@ -191,10 +184,11 @@ impl Parser {
             });
         };
         self.eat(Token::Ident(var_name.clone()))?;
+    
         if self.current_token == Token::Ident("=".to_string()) {
             self.eat(Token::Ident("=".to_string()))?;
             let value = self.expr()?;
-            Ok(ASTNode::VarAssign(var_name, Box::new(value)))
+            Ok(ASTNode::VarDecl(var_name, Box::new(value)))
         } else {
             Ok(ASTNode::VarRef(var_name))
         }
