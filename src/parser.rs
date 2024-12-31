@@ -149,7 +149,11 @@ impl Parser {
         self.eat(Token::LParen)?;
         let condition = self.comparison()?;
         self.eat(Token::RParen)?;
-        let body = self.block()?;
+        let body = if self.current_token == Token::LBrace {
+            self.block()?
+        } else {
+            vec![self.statement()?]
+        };
         Ok(ASTNode::While {
             condition: Box::new(condition),
             body,
