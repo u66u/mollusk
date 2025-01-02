@@ -21,4 +21,9 @@ pub enum ASTNode {
     VarAssign(String, Box<ASTNode>),
     VarRef(String),
     Block(Vec<ASTNode>),
+    Array(Vec<ASTNode>),
+    ArrayIndex {
+        array: Box<ASTNode>,
+        index: Box<ASTNode>,
+    },
 }

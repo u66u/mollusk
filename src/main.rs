@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 mod ast;
 mod error;
 mod parser;
@@ -8,21 +7,11 @@ mod vm;
 
 use crate::parser::Parser;
 use crate::tokenizer::{Token, Tokenizer};
-use crate::vm::{VM, run_instructions};
+use crate::vm::{run_instructions, VM};
 
 fn main() {
     let program = r#"
-x = 5
-if (x == 10) {
-    y = x + 5  
-} else {
-    y = x - 5
-}
-while (x < 10) {
-    x = x + 1  
-}
-i = 10  
-i
+    x = [1,2,3]
     "#
     .to_string();
 
@@ -39,7 +28,7 @@ i
                 println!("VM stack: {:?}", vm.stack);
                 println!("VM env: {:?}", vm.env_stack);
             }
-            Err(e) => println!("Runtime error: {}", e)
+            Err(e) => println!("Runtime error: {}", e),
         }
     }
 }

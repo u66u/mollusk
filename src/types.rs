@@ -21,7 +21,9 @@ impl Value {
     fn as_array_mut(&mut self) -> Result<&mut Vec<Value>, VMError> {
         match self {
             Value::Array(arr) => Ok(arr),
-            _ => Err(VMError::TypeError { message: format!("Expected array, got {}", self.type_name()) }),
+            _ => Err(VMError::TypeError {
+                message: format!("Expected array, got {}", self.type_name()),
+            }),
         }
     }
 
@@ -54,7 +56,6 @@ pub trait VMArray {
     fn get(&self, index: Option<i32>) -> Result<Value, VMError>;
     fn set(&mut self, index: Option<i32>, value: Value) -> Result<(), VMError>;
 }
-
 
 impl VMBinaryOp for Value {
     fn add(&self, other: &Value) -> Result<Value, VMError> {
@@ -125,7 +126,6 @@ impl VMCompare for Value {
         }
     }
 }
-
 
 impl VMArray for Value {
     fn push(&mut self, value: Value) -> Result<(), VMError> {

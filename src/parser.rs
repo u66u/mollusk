@@ -46,8 +46,14 @@ impl Parser {
             Token::Ident(name) => {
                 let var_name = name.clone();
                 self.eat(Token::Ident(var_name.clone()))?;
-                Ok(ASTNode::VarRef(var_name))
+                if self.current_token == Token::LBracket {
+                    self.array_index(ASTNode::VarRef(var_name))
+                } else {
+                    Ok(ASTNode::VarRef(var_name))
+                }
             }
+            Token::LBracket => self.array_literal(),
+
             _ => Err(VMError::ParseError {
                 message: format!(
                     "Unexpected token in factor: expected Number, LParen, or Ident, found {:?}",
@@ -192,6 +198,33 @@ impl Parser {
         } else {
             Ok(ASTNode::VarRef(var_name))
         }
+    }
+
+    fn array_literal(&mut self) -> Result<ASTNode, VMError> {
+        self.eat(Token::LBracket)?;
+        let mut elements = Vec::new();
+        
+        if self.current_token != Token::RBracket {
+            elements.push(self.expr()?);
+            while self.current_token == Token::Comma {
+                self.eat(Token::Comma)?;
+                elements.push(self.expr()?);
+            }
+        }
+        
+        self.eat(Token::RBracket)?;
+        Ok(ASTNode::Array(elements))
+    }
+    
+    fn array_index(&mut self, array: ASTNode) -> Result<ASTNode, VMError> {
+        self.eat(Token::LBracket)?;
+        let index = self.expr()?;
+        self.eat(Token::RBracket)?;
+        
+        Ok(ASTNode::ArrayIndex {
+            array: Box::new(array),
+            index: Box::new(index),
+        })
     }
 
     pub fn parse_program(&mut self) -> Result<Vec<ASTNode>, VMError> {

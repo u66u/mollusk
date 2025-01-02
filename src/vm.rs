@@ -1,8 +1,8 @@
-use std::collections::HashMap;
 use crate::ast::ASTNode;
-use crate::tokenizer::Token;
-use crate::types::{Value, VMBinaryOp, VMCompare, VMArray};
 use crate::error::VMError;
+use crate::tokenizer::Token;
+use crate::types::{VMArray, VMBinaryOp, VMCompare, Value};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub enum ArrayOperation {
@@ -40,7 +40,6 @@ pub struct VM {
     pub ip: usize,
     pub env_stack: Vec<HashMap<String, Value>>,
 }
-
 
 impl VM {
     pub fn new() -> Self {
@@ -142,48 +141,44 @@ impl VM {
                     if let Some(value) = self.get_var(name) {
                         self.stack.push(value);
                     } else {
-                        return Err(VMError::UndefinedVariable {
-                            name: name.clone()
-                        });
+                        return Err(VMError::UndefinedVariable { name: name.clone() });
                     }
                 }
                 Instruction::BeginScope => {
                     self.env_stack.push(HashMap::new());
                 }
                 Instruction::EndScope => {
-                        self.env_stack.pop().ok_or(VMError::NoScopeToEnd)?;
+                    self.env_stack.pop().ok_or(VMError::NoScopeToEnd)?;
                 }
                 Instruction::CreateArray => {
                     self.stack.push(Value::Array(Vec::new()));
                 }
-                Instruction::ArrayOp(op) => {
-                    match op {
-                        ArrayOperation::Push => {
-                            let value = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                            let mut array = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                            array.push(value)?;
-                            self.stack.push(array);
-                        }
-                        ArrayOperation::Pop => {
-                            let mut array = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                            let value = array.pop()?;
-                            self.stack.push(array);
-                            self.stack.push(value);
-                        }
-                        ArrayOperation::Get(index) => {
-                            let array = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                            let value = array.get(Some(*index as i32))?;
-                            self.stack.push(array);
-                            self.stack.push(value);
-                        }
-                        ArrayOperation::Set(index) => {
-                            let value = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                            let mut array = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                            array.set(Some(*index as i32), value)?;
-                            self.stack.push(array);
-                        }
+                Instruction::ArrayOp(op) => match op {
+                    ArrayOperation::Push => {
+                        let value = self.stack.pop().ok_or(VMError::StackUnderflow)?;
+                        let mut array = self.stack.pop().ok_or(VMError::StackUnderflow)?;
+                        array.push(value)?;
+                        self.stack.push(array);
                     }
-                }
+                    ArrayOperation::Pop => {
+                        let mut array = self.stack.pop().ok_or(VMError::StackUnderflow)?;
+                        let value = array.pop()?;
+                        self.stack.push(array);
+                        self.stack.push(value);
+                    }
+                    ArrayOperation::Get(index) => {
+                        let array = self.stack.pop().ok_or(VMError::StackUnderflow)?;
+                        let value = array.get(Some(*index as i32))?;
+                        self.stack.push(array);
+                        self.stack.push(value);
+                    }
+                    ArrayOperation::Set(index) => {
+                        let value = self.stack.pop().ok_or(VMError::StackUnderflow)?;
+                        let mut array = self.stack.pop().ok_or(VMError::StackUnderflow)?;
+                        array.set(Some(*index as i32), value)?;
+                        self.stack.push(array);
+                    }
+                },
             }
             self.ip += 1;
         }
@@ -210,19 +205,25 @@ pub fn compile(node: ASTNode) -> Vec<Instruction> {
             }
             instructions
         }
-        ASTNode::If { condition, if_block, else_block } => {
+        ASTNode::If {
+            condition,
+            if_block,
+            else_block,
+        } => {
             let mut instructions = compile(*condition);
-            let if_instructions: Vec<Instruction> = if_block.into_iter().flat_map(compile).collect();
-            let else_instructions: Vec<Instruction> = else_block.into_iter().flat_map(compile).collect();
-        
+            let if_instructions: Vec<Instruction> =
+                if_block.into_iter().flat_map(compile).collect();
+            let else_instructions: Vec<Instruction> =
+                else_block.into_iter().flat_map(compile).collect();
+
             let else_start = instructions.len() + if_instructions.len() + 2;
             instructions.push(Instruction::Jz(else_start));
-            
+
             instructions.extend(if_instructions);
-            
+
             let after_else = else_start + else_instructions.len();
             instructions.push(Instruction::Jmp(after_else));
-            
+
             instructions.extend(else_instructions);
             instructions
         }
@@ -265,7 +266,21 @@ pub fn compile(node: ASTNode) -> Vec<Instruction> {
             instructions.push(Instruction::EndScope);
             instructions
         }
+        ASTNode::Array(elements) => {
+            let mut instructions = vec![Instruction::CreateArray];
+            for element in elements {
+                instructions.extend(compile(element));
+                instructions.push(Instruction::ArrayOp(ArrayOperation::Push));
+            }
+            instructions
+        }
+        ASTNode::ArrayIndex { array, index } => {
+            let mut instructions = compile(*array);
+            instructions.extend(compile(*index));
+            instructions.push(Instruction::ArrayOp(ArrayOperation::Get(0)));
+            instructions
     }
+}
 }
 
 pub fn run_instructions(nodes: Vec<ASTNode>) -> Vec<Instruction> {
@@ -274,7 +289,7 @@ pub fn run_instructions(nodes: Vec<ASTNode>) -> Vec<Instruction> {
 
     for node in nodes {
         let mut node_instructions = compile(node);
-        
+
         let mut scope_count = 0;
         for instruction in &node_instructions {
             match instruction {

@@ -1,12 +1,31 @@
 #[derive(Debug)]
 pub enum VMError {
-    ParseError { message: String, line: usize, position: usize },
-    TokenizationError { message: String, line: usize, position: usize },
-    ExecutionError { message: String, line: usize, position: usize },
-    TypeError { message: String },
-    IndexError { index: i32, len: usize },
+    ParseError {
+        message: String,
+        line: usize,
+        position: usize,
+    },
+    TokenizationError {
+        message: String,
+        line: usize,
+        position: usize,
+    },
+    ExecutionError {
+        message: String,
+        line: usize,
+        position: usize,
+    },
+    TypeError {
+        message: String,
+    },
+    IndexError {
+        index: i32,
+        len: usize,
+    },
     NotAnArray,
-    UndefinedVariable { name: String },
+    UndefinedVariable {
+        name: String,
+    },
     StackUnderflow,
     DivisionByZero,
     NoScopeToEnd,
@@ -42,7 +61,11 @@ impl std::fmt::Display for VMError {
             VMError::UndefinedVariable { name } => write!(f, "Undefined variable: {}", name),
             VMError::StackUnderflow => write!(f, "Stack underflow"),
             VMError::DivisionByZero => write!(f, "Division by zero"),
-            VMError::IndexError { index, len } => write!(f, "Index error: index {} out of bounds for array of length {}", index, len),
+            VMError::IndexError { index, len } => write!(
+                f,
+                "Index error: index {} out of bounds for array of length {}",
+                index, len
+            ),
             VMError::NotAnArray => write!(f, "Value is not an array"),
             VMError::NoScopeToEnd => write!(f, "No scope to end"),
         }

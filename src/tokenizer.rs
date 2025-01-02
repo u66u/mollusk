@@ -11,6 +11,9 @@ pub enum Token {
     RParen,
     LBrace,
     RBrace,
+    LBracket,
+    RBracket,
+    Comma,
     If,
     Else,
     While,
@@ -57,7 +60,7 @@ impl Tokenizer {
                     return Ok(Token::Number(num));
                 }
 
-                '+' | '-' | '*' | '/' | '(' | ')' | '{' | '}' | '>' | '<' | '=' | '!' => {
+                '+' | '-' | '*' | '/' | '(' | ')' | '{' | '}' | '>' | '<' | '=' | '!' | '[' | ']' | ',' => {
                     let (token, advance) = match c {
                         '+' => (Token::Plus, 1),
                         '-' => (Token::Minus, 1),
@@ -67,6 +70,9 @@ impl Tokenizer {
                         ')' => (Token::RParen, 1),
                         '{' => (Token::LBrace, 1),
                         '}' => (Token::RBrace, 1),
+                        '[' => (Token::LBracket, 1),
+                        ']' => (Token::RBracket, 1),
+                        ',' => (Token::Comma, 1),
                         '>' => (Token::Greater, 1),
                         '<' => (Token::Less, 1),
                         '=' => {
