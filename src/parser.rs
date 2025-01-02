@@ -195,6 +195,19 @@ impl Parser {
             self.eat(Token::Ident("=".to_string()))?;
             let value = self.expr()?;
             Ok(ASTNode::VarDecl(var_name, Box::new(value)))
+        } else if self.current_token == Token::LBracket {
+            let array_index = self.array_index(ASTNode::VarRef(var_name.clone()))?;
+            if self.current_token == Token::Ident("=".to_string()) {
+                self.eat(Token::Ident("=".to_string()))?;
+                let value = self.expr()?;
+                Ok(ASTNode::ArrayAssign {
+                    array: Box::new(ASTNode::VarRef(var_name)),
+                    index: Box::new(array_index),
+                    value: Box::new(value),
+                })
+            } else {
+                Ok(array_index)
+            }
         } else {
             Ok(ASTNode::VarRef(var_name))
         }

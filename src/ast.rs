@@ -26,4 +26,9 @@ pub enum ASTNode {
         array: Box<ASTNode>,
         index: Box<ASTNode>,
     },
+    ArrayAssign {
+        array: Box<ASTNode>,
+        index: Box<ASTNode>,
+        value: Box<ASTNode>,
+    },
 }

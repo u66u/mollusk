@@ -12,6 +12,7 @@ use crate::vm::{run_instructions, VM};
 fn main() {
     let program = r#"
     x = [1,2,3]
+     y= x[2]
     "#
     .to_string();
 

@@ -166,17 +166,30 @@ impl VM {
                         self.stack.push(array);
                         self.stack.push(value);
                     }
-                    ArrayOperation::Get(index) => {
+                    ArrayOperation::Get(_) => {
+                        let index = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                         let array = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        let value = array.get(Some(*index as i32))?;
-                        self.stack.push(array);
-                        self.stack.push(value);
+                        if let Value::Number(idx) = index {
+                            let value = array.get(Some(idx))?;
+                            self.stack.push(value);
+                        } else {
+                            return Err(VMError::TypeError {
+                                message: "Index is not a number".to_string(),
+                            });
+                        }
                     }
-                    ArrayOperation::Set(index) => {
+                    ArrayOperation::Set(_) => {
                         let value = self.stack.pop().ok_or(VMError::StackUnderflow)?;
+                        let index = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                         let mut array = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        array.set(Some(*index as i32), value)?;
-                        self.stack.push(array);
+                        if let Value::Number(idx) = index {
+                            array.set(Some(idx), value)?;
+                            self.stack.push(array);
+                        } else {
+                            return Err(VMError::TypeError {
+                                message: "Index is not a number".to_string(),
+                            });
+                        }
                     }
                 },
             }
@@ -257,9 +270,7 @@ pub fn compile(node: ASTNode) -> Vec<Instruction> {
             instructions.push(Instruction::Store(name));
             instructions
         }
-        ASTNode::VarRef(name) => {
-            vec![Instruction::Load(name)]
-        }
+        ASTNode::VarRef(name) => vec![Instruction::Load(name)],
         ASTNode::Block(nodes) => {
             let mut instructions = vec![Instruction::BeginScope];
             instructions.extend(nodes.into_iter().flat_map(compile));
@@ -279,7 +290,14 @@ pub fn compile(node: ASTNode) -> Vec<Instruction> {
             instructions.extend(compile(*index));
             instructions.push(Instruction::ArrayOp(ArrayOperation::Get(0)));
             instructions
-    }
+        }
+        ASTNode::ArrayAssign { array, index, value } => {
+            let mut instructions = compile(*array);
+            instructions.extend(compile(*index));
+            instructions.extend(compile(*value));
+            instructions.push(Instruction::ArrayOp(ArrayOperation::Set(0)));
+            instructions
+        }
 }
 }
 
