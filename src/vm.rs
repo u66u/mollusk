@@ -184,7 +184,15 @@ impl VM {
                         let mut array = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                         if let Value::Number(idx) = index {
                             array.set(Some(idx), value)?;
-                            self.stack.push(array);
+                            if let Some(var_name) = self.current_env().iter().find_map(|(k, v)| {
+                                if v.eq(&array) {
+                                    Some(k.clone())
+                                } else {
+                                    None
+                                }
+                            }) {
+                                self.current_env().insert(var_name, array);
+                            }
                         } else {
                             return Err(VMError::TypeError {
                                 message: "Index is not a number".to_string(),

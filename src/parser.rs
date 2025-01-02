@@ -200,11 +200,19 @@ impl Parser {
             if self.current_token == Token::Ident("=".to_string()) {
                 self.eat(Token::Ident("=".to_string()))?;
                 let value = self.expr()?;
-                Ok(ASTNode::ArrayAssign {
-                    array: Box::new(ASTNode::VarRef(var_name)),
-                    index: Box::new(array_index),
-                    value: Box::new(value),
-                })
+                if let ASTNode::ArrayIndex { array, index } = array_index {
+                    Ok(ASTNode::ArrayAssign {
+                        array,
+                        index,
+                        value: Box::new(value),
+                    })
+                } else {
+                    Err(VMError::ParseError {
+                        message: "Expected array index".to_string(),
+                        line: self.tokenizer.line,
+                        position: self.tokenizer.line_position,
+                    })
+                }
             } else {
                 Ok(array_index)
             }
