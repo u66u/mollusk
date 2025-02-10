@@ -219,18 +219,14 @@ impl VM {
                         let index = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                         let array = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                         
-                        if let (Value::Number(idx), Value::Array(ref mut arr)) = (index, array) {
+                        if let (Value::Number(idx), Value::Array(mut arr)) = (index, array) {
                             let bound_idx = self.check_array_bounds(idx, arr.len())?;
                             arr[bound_idx] = value;
-                            
-                            if let Some(var_name) = self.current_env().iter().find_map(|(k, v)| {
-                                if v.eq(&Value::Array(arr.clone())) {
-                                    Some(k.clone())
-                                } else {
-                                    None
-                                }
-                            }) {
-                                self.current_env().insert(var_name, Value::Array(arr.clone()));
+                            let array_value = Value::Array(arr);
+                            if let Some(name) = self.current_env().iter().find_map(|(k, v)| 
+                                if matches!(v, Value::Array(_)) { Some(k.clone()) } else { None }
+                            ) {
+                                self.current_env().insert(name, array_value);
                             }
                         } else {
                             return Err(VMError::TypeError {

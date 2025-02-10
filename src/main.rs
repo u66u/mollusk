@@ -13,10 +13,8 @@ fn main() -> miette::Result<()> {
     let program = r#"
     x = [1,2,3]
      x[0] = 10
-     y = x[0]
-     y
-    z = "hi"
-    z = 
+    y = x[0] + 5
+    (y + 5)
     "#
     .to_string();
 
