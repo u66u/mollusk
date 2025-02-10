@@ -45,6 +45,11 @@ impl Parser {
                 self.eat(Token::Number(num))?;
                 Ok(ASTNode::Number(num))
             }
+            Token::String(s) => {
+                let str = s.clone();
+                self.eat(Token::String(str.clone()))?;
+                Ok(ASTNode::String(str))
+            }
             Token::LParen => {
                 self.eat(Token::LParen)?;
                 let node = self.comparison()?;

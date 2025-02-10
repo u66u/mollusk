@@ -3,6 +3,7 @@ use crate::tokenizer::Token;
 #[derive(Debug, Clone)]
 pub enum ASTNode {
     Number(i32),
+    String(String),
     BinOp {
         left: Box<ASTNode>,
         op: Token,

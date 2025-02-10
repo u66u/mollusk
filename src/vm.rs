@@ -48,7 +48,7 @@ impl VM {
             stack: Vec::new(),
             ip: 0,
             env_stack: vec![HashMap::new()], // Start with global scope
-            max_stack_size: 1000, // Reasonable default
+            max_stack_size: 4000, 
         }
     }
 
@@ -217,13 +217,12 @@ impl VM {
                     ArrayOperation::Set(_) => {
                         let value = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                         let index = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        let mut array = self.stack.pop().ok_or(VMError::StackUnderflow)?;
+                        let array = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                         
                         if let (Value::Number(idx), Value::Array(ref mut arr)) = (index, array) {
                             let bound_idx = self.check_array_bounds(idx, arr.len())?;
                             arr[bound_idx] = value;
                             
-                            // Update the array in the environment if it exists
                             if let Some(var_name) = self.current_env().iter().find_map(|(k, v)| {
                                 if v.eq(&Value::Array(arr.clone())) {
                                     Some(k.clone())
@@ -244,11 +243,10 @@ impl VM {
             self.ip += 1;
         }
         
-        // Ensure all scopes are properly closed
         if scope_depth != 0 {
             return Err(VMError::ExecutionError {
                 message: format!("Unclosed scopes at end of execution: {}", scope_depth),
-                line: 0,  // We don't track line numbers in the VM
+                line: 0, 
                 position: 0,
             });
         }
@@ -260,6 +258,7 @@ impl VM {
 pub fn compile(node: ASTNode) -> Vec<Instruction> {
     match node {
         ASTNode::Number(n) => vec![Instruction::Push(Value::Number(n))],
+        ASTNode::String(s) => vec![Instruction::Push(Value::String(s))],
         ASTNode::BinOp { left, op, right } => {
             let mut instructions = compile(*left);
             instructions.extend(compile(*right));

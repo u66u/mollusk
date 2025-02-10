@@ -5,6 +5,7 @@ pub enum Value {
     Number(i32),
     Boolean(bool),
     Array(Vec<Value>),
+    String(String),
     Null,
 }
 
@@ -14,6 +15,7 @@ impl Value {
             Value::Number(_) => "number",
             Value::Boolean(_) => "boolean",
             Value::Array(_) => "array",
+            Value::String(_) => "string",
             Value::Null => "null",
         }
     }
@@ -32,6 +34,7 @@ impl Value {
             Value::Number(n) => *n > 0,
             Value::Boolean(b) => *b,
             Value::Array(arr) => !arr.is_empty(),
+            Value::String(s) => !s.is_empty(),
             Value::Null => false,
         }
     }
@@ -61,6 +64,9 @@ impl VMBinaryOp for Value {
     fn add(&self, other: &Value) -> Result<Value, VMError> {
         match (self, other) {
             (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a + b)),
+            (Value::String(a), Value::String(b)) => Ok(Value::String(format!("{}{}", a, b))),
+            (Value::String(a), b) => Ok(Value::String(format!("{:?}{:?}", a, b))),
+            (a, Value::String(b)) => Ok(Value::String(format!("{:?}{:?}", a, b))),
             _ => Err(VMError::TypeError {
                 message: format!("Cannot add {:?} and {:?}", self, other),
             }),
@@ -112,6 +118,7 @@ impl VMCompare for Value {
                 }
                 a.iter().zip(b.iter()).all(|(a, b)| a.eq(b))
             }
+            (Value::String(a), Value::String(b)) => a == b,
             (Value::Null, Value::Null) => true,
             _ => false,
         }
@@ -120,6 +127,7 @@ impl VMCompare for Value {
     fn lt(&self, other: &Value) -> Result<bool, VMError> {
         match (self, other) {
             (Value::Number(a), Value::Number(b)) => Ok(a < b),
+            (Value::String(a), Value::String(b)) => Ok(a < b),
             _ => Err(VMError::TypeError {
                 message: format!("Cannot compare {:?} and {:?} with <", self, other),
             }),
@@ -129,6 +137,7 @@ impl VMCompare for Value {
     fn gt(&self, other: &Value) -> Result<bool, VMError> {
         match (self, other) {
             (Value::Number(a), Value::Number(b)) => Ok(a > b),
+            (Value::String(a), Value::String(b)) => Ok(a > b),
             _ => Err(VMError::TypeError {
                 message: format!("Cannot compare {:?} and {:?} with >", self, other),
             }),

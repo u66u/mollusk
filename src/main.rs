@@ -15,6 +15,7 @@ fn main() {
      x[0] = 10
      y = x[0]
      y
+    z = "hi"
     "#
     .to_string();
 

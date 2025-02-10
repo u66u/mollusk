@@ -61,41 +61,54 @@ impl Tokenizer {
                     self.position = start;
                     return Ok(Token::Number(num));
                 }
-                '"' => {
+                '"' | '\'' => {
+                    let quote = c;
                     self.position += 1; // Skip opening quote
                     let mut string = String::new();
                     let mut escaped = false;
+                    let start_line = self.line;
+                    let start_pos = self.line_position;
                     
                     while self.position < self.input.len() {
                         let c = self.input[self.position..].chars().next().unwrap();
                         self.position += 1;
+                        self.line_position += 1;
                         
                         if escaped {
                             string.push(match c {
                                 'n' => '\n',
                                 't' => '\t',
                                 'r' => '\r',
-                                '"' => '"',
                                 '\\' => '\\',
+                                '"' => '"',
+                                '\'' => '\'',
+                                'b' => '\x08', // backspace
+                                'f' => '\x0c', // form feed
+                                'v' => '\x0b', // vertical tab
+                                '0' => '\0',   // null
                                 _ => return Err(VMError::TokenizationError {
                                     message: format!("Invalid escape sequence: \\{}", c),
-                                    line: self.line,
-                                    position: self.line_position,
+                                    line: start_line,
+                                    position: start_pos,
                                 }),
                             });
                             escaped = false;
                         } else if c == '\\' {
                             escaped = true;
-                        } else if c == '"' {
+                        } else if c == quote {
                             return Ok(Token::String(string));
+                        } else if c == '\n' {
+                            self.line += 1;
+                            self.line_position = 1;
+                            string.push(c);
                         } else {
                             string.push(c);
                         }
                     }
                     return Err(VMError::TokenizationError {
-                        message: "Unterminated string literal".to_string(),
-                        line: self.line,
-                        position: self.line_position,
+                        message: format!("Unterminated string literal starting with {}", quote),
+                        line: start_line,
+                        position: start_pos,
                     });
                 }
                 '+' | '-' | '*' | '/' | '(' | ')' | '{' | '}' | '>' | '<' | '!' | '[' | ']' | ',' | '=' => {
