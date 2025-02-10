@@ -6,16 +6,17 @@ mod types;
 mod vm;
 
 use crate::parser::Parser;
-use crate::tokenizer::{Token, Tokenizer};
+use crate::tokenizer::Tokenizer;
 use crate::vm::{run_instructions, VM};
 
-fn main() {
+fn main() -> miette::Result<()> {
     let program = r#"
     x = [1,2,3]
      x[0] = 10
      y = x[0]
      y
     z = "hi"
+    z = 
     "#
     .to_string();
 
@@ -34,5 +35,8 @@ fn main() {
             }
             Err(e) => println!("Runtime error: {}", e),
         }
+    } else if let Err(err) = ast_nodes {
+        return Err(err.into());
     }
+    Ok(())
 }

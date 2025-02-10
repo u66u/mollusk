@@ -44,6 +44,10 @@ impl Tokenizer {
         }
     }
 
+    fn create_error(&self, message: String, error_start: usize, len: usize) -> VMError {
+        VMError::tokenization_error(self.input.clone(), message, error_start, len)
+    }
+
     pub fn next_token(&mut self) -> Result<Token, VMError> {
         while self.position < self.input.len() {
             let input_slice = &self.input[self.position..];
@@ -63,11 +67,10 @@ impl Tokenizer {
                 }
                 '"' | '\'' => {
                     let quote = c;
+                    let start_pos = self.position;
                     self.position += 1; // Skip opening quote
                     let mut string = String::new();
                     let mut escaped = false;
-                    let start_line = self.line;
-                    let start_pos = self.line_position;
                     
                     while self.position < self.input.len() {
                         let c = self.input[self.position..].chars().next().unwrap();
@@ -82,15 +85,15 @@ impl Tokenizer {
                                 '\\' => '\\',
                                 '"' => '"',
                                 '\'' => '\'',
-                                'b' => '\x08', // backspace
-                                'f' => '\x0c', // form feed
-                                'v' => '\x0b', // vertical tab
-                                '0' => '\0',   // null
-                                _ => return Err(VMError::TokenizationError {
-                                    message: format!("Invalid escape sequence: \\{}", c),
-                                    line: start_line,
-                                    position: start_pos,
-                                }),
+                                'b' => '\x08',
+                                'f' => '\x0c',
+                                'v' => '\x0b',
+                                '0' => '\0',
+                                _ => return Err(self.create_error(
+                                    format!("Invalid escape sequence: \\{}", c),
+                                    self.position - 2,
+                                    2
+                                )),
                             });
                             escaped = false;
                         } else if c == '\\' {
@@ -105,11 +108,11 @@ impl Tokenizer {
                             string.push(c);
                         }
                     }
-                    return Err(VMError::TokenizationError {
-                        message: format!("Unterminated string literal starting with {}", quote),
-                        line: start_line,
-                        position: start_pos,
-                    });
+                    return Err(self.create_error(
+                        format!("Unterminated string literal"),
+                        start_pos,
+                        self.position - start_pos
+                    ));
                 }
                 '+' | '-' | '*' | '/' | '(' | ')' | '{' | '}' | '>' | '<' | '!' | '[' | ']' | ',' | '=' => {
                     let (token, advance) = match c {
@@ -137,11 +140,11 @@ impl Tokenizer {
                             if self.input[self.position..].starts_with("!=") {
                                 (Token::NotEqual, 2)
                             } else {
-                                return Err(VMError::TokenizationError {
-                                    message: "Unexpected token: !".to_string(),
-                                    line: self.line,
-                                    position: self.line_position,
-                                });
+                                return Err(self.create_error(
+                                    "Unexpected token: !".to_string(),
+                                    self.position,
+                                    1
+                                ));
                             }
                         }
                         _ => unreachable!(),
@@ -182,11 +185,11 @@ impl Tokenizer {
                 }
 
                 _ => {
-                    return Err(VMError::TokenizationError {
-                        message: format!("Unexpected character: {}", c),
-                        line: self.line,
-                        position: self.line_position,
-                    });
+                    return Err(self.create_error(
+                        format!("Unexpected character: {}", c),
+                        self.position,
+                        1
+                    ));
                 }
             }
         }

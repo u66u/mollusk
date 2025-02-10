@@ -1,82 +1,88 @@
-#[derive(Debug)]
+use miette::{Diagnostic, SourceSpan};
+use thiserror::Error;
+
+#[derive(Error, Debug, Diagnostic)]
 pub enum VMError {
+    #[error("Parse error: {message}")]
+    #[diagnostic(code(vm::parse_error))]
     ParseError {
+        #[source_code]
+        src: String,
         message: String,
-        line: usize,
-        position: usize,
+        #[label("here")]
+        span: SourceSpan,
     },
+
+    #[error("Tokenization error: {message}")]
+    #[diagnostic(code(vm::tokenization_error))]
     TokenizationError {
+        #[source_code]
+        src: String,
         message: String,
-        line: usize,
-        position: usize,
+        #[label("here")]
+        span: SourceSpan,
     },
+
+    #[error("Execution error: {message}")]
+    #[diagnostic(code(vm::execution_error))]
     ExecutionError {
         message: String,
         line: usize,
         position: usize,
     },
+
+    #[error("Type error: {message}")]
     TypeError {
         message: String,
     },
+
+    #[error("Index {index} out of bounds for array of length {len}")]
     IndexError {
         index: i32,
         len: usize,
     },
+
+    #[error("Value is not an array")]
     NotAnArray,
+
+    #[error("Undefined variable: {name}")]
     UndefinedVariable {
         name: String,
     },
+
+    #[error("Stack underflow")]
     StackUnderflow,
+
+    #[error("Division by zero")]
     DivisionByZero,
+
+    #[error("No scope to end")]
     NoScopeToEnd,
+
+    #[error("Stack overflow")]
     StackOverflow,
+
+    #[error("Invalid jump destination: {target} (max: {max})")]
     InvalidJump {
         target: usize,
-        max: usize
-    }
+        max: usize,
+    },
 }
 
-impl std::fmt::Display for VMError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            VMError::ParseError {
-                message,
-                line,
-                position,
-            } => write!(f, "Parse error at line {}:{} - {}", line, position, message),
-            VMError::TokenizationError {
-                message,
-                line,
-                position,
-            } => write!(
-                f,
-                "Tokenization error at line {}:{} - {}",
-                line, position, message
-            ),
-            VMError::ExecutionError {
-                message,
-                line,
-                position,
-            } => write!(
-                f,
-                "Execution error at line {}:{} - {}",
-                line, position, message
-            ),
-            VMError::TypeError { message } => write!(f, "Type error: {}", message),
-            VMError::UndefinedVariable { name } => write!(f, "Undefined variable: {}", name),
-            VMError::StackUnderflow => write!(f, "Stack underflow"),
-            VMError::DivisionByZero => write!(f, "Division by zero"),
-            VMError::IndexError { index, len } => write!(
-                f,
-                "Index error: index {} out of bounds for array of length {}",
-                index, len
-            ),
-            VMError::NotAnArray => write!(f, "Value is not an array"),
-            VMError::NoScopeToEnd => write!(f, "No scope to end"),
-            VMError::StackOverflow => write!(f, "Stack overflow"),
-            VMError::InvalidJump { target, max } => write!(f, "Invalid jump destination: {} (max: {})", target, max),
+impl VMError {
+    pub fn tokenization_error(src: String, message: String, pos: usize, len: usize) -> Self {
+        VMError::TokenizationError {
+            src,
+            message,
+            span: (pos, len).into(),
+        }
+    }
+
+    pub fn parse_error(src: String, message: String, pos: usize, len: usize) -> Self {
+        VMError::ParseError {
+            src,
+            message,
+            span: (pos, len).into(),
         }
     }
 }
-
-impl std::error::Error for VMError {}

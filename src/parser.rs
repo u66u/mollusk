@@ -6,36 +6,43 @@ use crate::tokenizer::{Token, Tokenizer};
 pub struct Parser {
     pub tokenizer: Tokenizer,
     pub current_token: Token,
+    token_start: usize,
 }
 
 impl Parser {
     pub fn new(mut tokenizer: Tokenizer) -> Self {
+        let token_start = tokenizer.position;
         let current_token = tokenizer.next_token().unwrap();
         Parser {
             tokenizer,
             current_token,
+            token_start,
         }
+    }
+
+    fn create_error(&self, message: String) -> VMError {
+        VMError::parse_error(
+            self.tokenizer.input.clone(),
+            message,
+            self.token_start,
+            self.tokenizer.position - self.token_start
+        )
     }
 
     fn eat(&mut self, token: Token) -> Result<(), VMError> {
         if self.current_token == token {
+            self.token_start = self.tokenizer.position;
             self.current_token = self.tokenizer.next_token()?;
             Ok(())
         } else {
-            Err(VMError::ParseError {
-                message: format!("Expected: {:?}, Got: {:?}", token, self.current_token),
-                line: self.tokenizer.line,
-                position: self.tokenizer.line_position,
-            })
+            Err(self.create_error(
+                format!("Expected: {:?}, Got: {:?}", token, self.current_token)
+            ))
         }
     }
 
     fn error(&self, message: &str) -> VMError {
-        VMError::ParseError {
-            message: format!("{} at line {}, position {}", message, self.tokenizer.line, self.tokenizer.line_position),
-            line: self.tokenizer.line,
-            position: self.tokenizer.line_position,
-        }
+        self.create_error(format!("{}", message))
     }
 
     fn factor(&mut self) -> Result<ASTNode, VMError> {
@@ -67,14 +74,8 @@ impl Parser {
             }
             Token::LBracket => self.array_literal(),
 
-            _ => Err(VMError::ParseError {
-                message: format!(
-                    "Unexpected token in factor: expected Number, LParen, or Ident, found {:?}",
-                    self.current_token
-                ),
-                line: self.tokenizer.line,
-                position: self.tokenizer.line_position,
-            }),
+            _ => Err(self.error("Expected number, string, identifier, or '('")),
+
         }
     }
 
