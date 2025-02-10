@@ -23,6 +23,8 @@ pub enum Token {
     Equal,
     NotEqual,
     Ident(String),
+    String(String),
+    Assignment,
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct Tokenizer {
@@ -44,23 +46,59 @@ impl Tokenizer {
 
     pub fn next_token(&mut self) -> Result<Token, VMError> {
         while self.position < self.input.len() {
-            let c = self.input.chars().nth(self.position).unwrap();
+            let input_slice = &self.input[self.position..];
+            let c = input_slice.chars().next().unwrap();
+            
             match c {
                 '0'..='9' => {
                     let mut num = 0;
-                    while self.position < self.input.len() {
-                        let c = self.input.chars().nth(self.position).unwrap();
-                        if !c.is_ascii_digit() {
-                            break;
-                        }
-                        num = num * 10 + (c as i32 - '0' as i32);
-                        self.position += 1;
-                        self.line_position += 1;
+                    let mut start = self.position;
+                    while start < self.input.len() && self.input[start..].chars().next().unwrap().is_ascii_digit() {
+                        num = num * 10 + (self.input[start..].chars().next().unwrap() as i32 - '0' as i32);
+                        start += 1;
                     }
+                    self.line_position += start - self.position;
+                    self.position = start;
                     return Ok(Token::Number(num));
                 }
-
-                '+' | '-' | '*' | '/' | '(' | ')' | '{' | '}' | '>' | '<' | '=' | '!' | '[' | ']' | ',' => {
+                '"' => {
+                    self.position += 1; // Skip opening quote
+                    let mut string = String::new();
+                    let mut escaped = false;
+                    
+                    while self.position < self.input.len() {
+                        let c = self.input[self.position..].chars().next().unwrap();
+                        self.position += 1;
+                        
+                        if escaped {
+                            string.push(match c {
+                                'n' => '\n',
+                                't' => '\t',
+                                'r' => '\r',
+                                '"' => '"',
+                                '\\' => '\\',
+                                _ => return Err(VMError::TokenizationError {
+                                    message: format!("Invalid escape sequence: \\{}", c),
+                                    line: self.line,
+                                    position: self.line_position,
+                                }),
+                            });
+                            escaped = false;
+                        } else if c == '\\' {
+                            escaped = true;
+                        } else if c == '"' {
+                            return Ok(Token::String(string));
+                        } else {
+                            string.push(c);
+                        }
+                    }
+                    return Err(VMError::TokenizationError {
+                        message: "Unterminated string literal".to_string(),
+                        line: self.line,
+                        position: self.line_position,
+                    });
+                }
+                '+' | '-' | '*' | '/' | '(' | ')' | '{' | '}' | '>' | '<' | '!' | '[' | ']' | ',' | '=' => {
                     let (token, advance) = match c {
                         '+' => (Token::Plus, 1),
                         '-' => (Token::Minus, 1),
@@ -76,10 +114,10 @@ impl Tokenizer {
                         '>' => (Token::Greater, 1),
                         '<' => (Token::Less, 1),
                         '=' => {
-                            if self.input[self.position..].starts_with("==") {
+                            if input_slice.starts_with("==") {
                                 (Token::Equal, 2)
                             } else {
-                                (Token::Ident("=".to_string()), 1)
+                                (Token::Assignment, 1)
                             }
                         }
                         '!' => {

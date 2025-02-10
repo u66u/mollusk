@@ -30,6 +30,14 @@ impl Parser {
         }
     }
 
+    fn error(&self, message: &str) -> VMError {
+        VMError::ParseError {
+            message: format!("{} at line {}, position {}", message, self.tokenizer.line, self.tokenizer.line_position),
+            line: self.tokenizer.line,
+            position: self.tokenizer.line_position,
+        }
+    }
+
     fn factor(&mut self) -> Result<ASTNode, VMError> {
         match &self.current_token {
             Token::Number(n) => {
@@ -183,22 +191,18 @@ impl Parser {
         let var_name = if let Token::Ident(name) = &self.current_token {
             name.clone()
         } else {
-            return Err(VMError::ParseError {
-                message: "Expected identifier".to_string(),
-                line: self.tokenizer.line,
-                position: self.tokenizer.line_position,
-            });
+            return Err(self.error("Expected variable name"));
         };
         self.eat(Token::Ident(var_name.clone()))?;
     
-        if self.current_token == Token::Ident("=".to_string()) {
-            self.eat(Token::Ident("=".to_string()))?;
+        if self.current_token == Token::Assignment {
+            self.eat(Token::Assignment)?;
             let value = self.expr()?;
             Ok(ASTNode::VarDecl(var_name, Box::new(value)))
         } else if self.current_token == Token::LBracket {
             let array_index = self.array_index(ASTNode::VarRef(var_name.clone()))?;
-            if self.current_token == Token::Ident("=".to_string()) {
-                self.eat(Token::Ident("=".to_string()))?;
+            if self.current_token == Token::Assignment {
+                self.eat(Token::Assignment)?;
                 let value = self.expr()?;
                 if let ASTNode::ArrayIndex { array, index } = array_index {
                     Ok(ASTNode::ArrayAssign {
@@ -207,11 +211,7 @@ impl Parser {
                         value: Box::new(value),
                     })
                 } else {
-                    Err(VMError::ParseError {
-                        message: "Expected array index".to_string(),
-                        line: self.tokenizer.line,
-                        position: self.tokenizer.line_position,
-                    })
+                    Err(self.error("Expected array index"))
                 }
             } else {
                 Ok(array_index)
@@ -229,18 +229,21 @@ impl Parser {
             elements.push(self.expr()?);
             while self.current_token == Token::Comma {
                 self.eat(Token::Comma)?;
+                if self.current_token == Token::RBracket {
+                    break; // Allow trailing comma
+                }
                 elements.push(self.expr()?);
             }
         }
         
-        self.eat(Token::RBracket)?;
+        self.eat(Token::RBracket).map_err(|_| self.error("Expected closing bracket ']'"))?;
         Ok(ASTNode::Array(elements))
     }
     
     fn array_index(&mut self, array: ASTNode) -> Result<ASTNode, VMError> {
         self.eat(Token::LBracket)?;
         let index = self.expr()?;
-        self.eat(Token::RBracket)?;
+        self.eat(Token::RBracket).map_err(|_| self.error("Expected closing bracket ']'"))?;
         
         Ok(ASTNode::ArrayIndex {
             array: Box::new(array),

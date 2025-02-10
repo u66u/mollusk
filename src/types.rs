@@ -103,9 +103,18 @@ impl VMBinaryOp for Value {
 
 impl VMCompare for Value {
     fn eq(&self, other: &Value) -> bool {
-        let self_truthy = self.is_truthy();
-        let other_truthy = other.is_truthy();
-        self_truthy == other_truthy
+        match (self, other) {
+            (Value::Number(a), Value::Number(b)) => a == b,
+            (Value::Boolean(a), Value::Boolean(b)) => a == b,
+            (Value::Array(a), Value::Array(b)) => {
+                if a.len() != b.len() {
+                    return false;
+                }
+                a.iter().zip(b.iter()).all(|(a, b)| a.eq(b))
+            }
+            (Value::Null, Value::Null) => true,
+            _ => false,
+        }
     }
 
     fn lt(&self, other: &Value) -> Result<bool, VMError> {

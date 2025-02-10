@@ -39,6 +39,7 @@ pub struct VM {
     pub stack: Vec<Value>,
     pub ip: usize,
     pub env_stack: Vec<HashMap<String, Value>>,
+    max_stack_size: usize,
 }
 
 impl VM {
@@ -47,6 +48,7 @@ impl VM {
             stack: Vec::new(),
             ip: 0,
             env_stack: vec![HashMap::new()], // Start with global scope
+            max_stack_size: 1000, // Reasonable default
         }
     }
 
@@ -63,12 +65,28 @@ impl VM {
         None
     }
 
+    fn push(&mut self, value: Value) -> Result<(), VMError> {
+        if self.stack.len() >= self.max_stack_size {
+            return Err(VMError::StackOverflow);
+        }
+        self.stack.push(value);
+        Ok(())
+    }
+
+    fn check_array_bounds(&self, idx: i32, len: usize) -> Result<usize, VMError> {
+        if idx < 0 || idx as usize >= len {
+            return Err(VMError::IndexError { index: idx, len });
+        }
+        Ok(idx as usize)
+    }
+
     pub fn execute(&mut self, instructions: &[Instruction]) -> Result<(), VMError> {
+        let mut scope_depth = 0;
+        
         while self.ip < instructions.len() {
-            // println!("node: {:?}", instructions[self.ip]);
             match &instructions[self.ip] {
                 Instruction::Push(value) => {
-                    self.stack.push(value.clone());
+                    self.push(value.clone())?;
                 }
                 Instruction::Pop => {
                     self.stack.pop().ok_or(VMError::StackUnderflow)?;
@@ -122,10 +140,23 @@ impl VM {
                     self.stack.push(Value::Boolean(result));
                 }
                 Instruction::Jmp(target) => {
+                    if *target >= instructions.len() {
+                        return Err(VMError::ExecutionError {
+                            message: format!("Jump target {} out of bounds", target),
+                            line: 0,
+                            position: 0,
+                        });
+                    }
                     self.ip = *target;
                     continue;
                 }
                 Instruction::Jz(target) => {
+                    if *target >= instructions.len() {
+                        return Err(VMError::InvalidJump { 
+                            target: *target,
+                            max: instructions.len() 
+                        });
+                    }
                     let condition = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                     if !condition.is_truthy() {
                         self.ip = *target;
@@ -145,10 +176,14 @@ impl VM {
                     }
                 }
                 Instruction::BeginScope => {
+                    scope_depth += 1;
                     self.env_stack.push(HashMap::new());
                 }
                 Instruction::EndScope => {
-                    self.env_stack.pop().ok_or(VMError::NoScopeToEnd)?;
+                    scope_depth -= 1;
+                    if self.env_stack.pop().is_none() {
+                        return Err(VMError::NoScopeToEnd);
+                    }
                 }
                 Instruction::CreateArray => {
                     self.stack.push(Value::Array(Vec::new()));
@@ -169,12 +204,13 @@ impl VM {
                     ArrayOperation::Get(_) => {
                         let index = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                         let array = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        if let Value::Number(idx) = index {
-                            let value = array.get(Some(idx))?;
-                            self.stack.push(value);
+                        
+                        if let (Value::Number(idx), Value::Array(arr)) = (index, array) {
+                            let bound_idx = self.check_array_bounds(idx, arr.len())?;
+                            self.stack.push(arr[bound_idx].clone());
                         } else {
                             return Err(VMError::TypeError {
-                                message: "Index is not a number".to_string(),
+                                message: "Invalid array access".to_string(),
                             });
                         }
                     }
@@ -182,20 +218,24 @@ impl VM {
                         let value = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                         let index = self.stack.pop().ok_or(VMError::StackUnderflow)?;
                         let mut array = self.stack.pop().ok_or(VMError::StackUnderflow)?;
-                        if let Value::Number(idx) = index {
-                            array.set(Some(idx), value)?;
+                        
+                        if let (Value::Number(idx), Value::Array(ref mut arr)) = (index, array) {
+                            let bound_idx = self.check_array_bounds(idx, arr.len())?;
+                            arr[bound_idx] = value;
+                            
+                            // Update the array in the environment if it exists
                             if let Some(var_name) = self.current_env().iter().find_map(|(k, v)| {
-                                if v.eq(&array) {
+                                if v.eq(&Value::Array(arr.clone())) {
                                     Some(k.clone())
                                 } else {
                                     None
                                 }
                             }) {
-                                self.current_env().insert(var_name, array);
+                                self.current_env().insert(var_name, Value::Array(arr.clone()));
                             }
                         } else {
                             return Err(VMError::TypeError {
-                                message: "Index is not a number".to_string(),
+                                message: "Invalid array assignment".to_string(),
                             });
                         }
                     }
@@ -203,6 +243,16 @@ impl VM {
             }
             self.ip += 1;
         }
+        
+        // Ensure all scopes are properly closed
+        if scope_depth != 0 {
+            return Err(VMError::ExecutionError {
+                message: format!("Unclosed scopes at end of execution: {}", scope_depth),
+                line: 0,  // We don't track line numbers in the VM
+                position: 0,
+            });
+        }
+        
         Ok(())
     }
 }
@@ -312,19 +362,8 @@ pub fn compile(node: ASTNode) -> Vec<Instruction> {
 pub fn run_instructions(nodes: Vec<ASTNode>) -> Vec<Instruction> {
     let mut instr = Vec::new();
     let mut offset = 0;
-
     for node in nodes {
         let mut node_instructions = compile(node);
-
-        let mut scope_count = 0;
-        for instruction in &node_instructions {
-            match instruction {
-                Instruction::BeginScope => scope_count += 1,
-                Instruction::EndScope => scope_count -= 1,
-                _ => {}
-            }
-        }
-
         for instruction in &mut node_instructions {
             match instruction {
                 Instruction::Jmp(target) => *target += offset,
@@ -332,10 +371,8 @@ pub fn run_instructions(nodes: Vec<ASTNode>) -> Vec<Instruction> {
                 _ => {}
             }
         }
-
         offset += node_instructions.len();
         instr.extend(node_instructions);
     }
-
     instr
 }

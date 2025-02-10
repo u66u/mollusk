@@ -29,6 +29,11 @@ pub enum VMError {
     StackUnderflow,
     DivisionByZero,
     NoScopeToEnd,
+    StackOverflow,
+    InvalidJump {
+        target: usize,
+        max: usize
+    }
 }
 
 impl std::fmt::Display for VMError {
@@ -68,6 +73,8 @@ impl std::fmt::Display for VMError {
             ),
             VMError::NotAnArray => write!(f, "Value is not an array"),
             VMError::NoScopeToEnd => write!(f, "No scope to end"),
+            VMError::StackOverflow => write!(f, "Stack overflow"),
+            VMError::InvalidJump { target, max } => write!(f, "Invalid jump destination: {} (max: {})", target, max),
         }
     }
 }
